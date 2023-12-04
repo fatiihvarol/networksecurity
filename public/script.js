@@ -1,22 +1,50 @@
-// Function to decrypt temperature and humidity values
-function decryptData(encryptedTemperature, encryptedHumidity, xorKey) {
-  // XOR operation to decrypt
-  const decryptedTemperature = encryptedTemperature ^ xorKey;
-  const decryptedHumidity = encryptedHumidity ^ xorKey;
-
-  return {
-    temperature: decryptedTemperature,
-    humidity: decryptedHumidity,
-  };
-}
-
 document.addEventListener("DOMContentLoaded", function () {
   // Your ThingSpeak channel ID and read API key
   const channelId = "2368157";
   const apiKey = "08ZAA7DRBQZDCW6R";
 
+  // XOR Key for decryption
+  const xorKey = 0b10101010;
+
   // URL to fetch data from ThingSpeak
   const apiUrl = `https://api.thingspeak.com/channels/${channelId}/feeds.json?api_key=${apiKey}&results=10`;
+
+  // Function to decrypt data using XOR
+  function decryptXOR(encryptedText, key) {
+    const binaryArray = encryptedText
+      .split(" ")
+      .map((byte) => parseInt(byte, 2));
+
+    const decryptedArray = binaryArray.map((byte) => byte ^ key);
+
+    const decryptedDecimalArray = decryptedArray.map((byte) =>
+      byte.toString(10)
+    );
+
+    return decryptedDecimalArray[0];
+  }
+
+  // Function to fetch and decrypt data from ThingSpeak
+  async function fetchData() {
+    try {
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+
+      // Decrypt each field that is encrypted
+      const decryptedFeeds = data.feeds.map((feed) => ({
+        created_at: feed.created_at,
+        field1: decryptXOR(feed.field1, xorKey),
+        field2: decryptXOR(feed.field2, xorKey),
+        field3: feed.field1,
+        field4: feed.field2,
+        // Add more fields if needed
+      }));
+
+      displayData(decryptedFeeds);
+    } catch (error) {
+      console.error("Error fetching or decrypting data:", error);
+    }
+  }
 
   // Function to display data on the web page
   function displayData(feeds) {
@@ -24,11 +52,8 @@ document.addEventListener("DOMContentLoaded", function () {
     dataContainer.innerHTML = ""; // Clear previous data
 
     feeds.forEach((feed) => {
-      // Decrypt temperature and humidity values
-      const decryptedData = decryptData(parseInt(feed.field1), parseInt(feed.field2), 0b10101010);
-
       const entry = document.createElement("p");
-      entry.textContent = `Date: ${feed.created_at}, Decrypted Temperature: ${decryptedData.temperature}, Decrypted Humidity: ${decryptedData.humidity}`;
+      entry.innerHTML = `Temperature Cipher Text: ${feed.field3},<br>Temperature: ${feed.field1},<br>Humidity Cipher Text: ${feed.field4},<br>Humidity: ${feed.field2}`; // Adjust fields as per your channel
       dataContainer.appendChild(entry);
     });
   }
